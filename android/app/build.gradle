@@ -1,0 +1,32 @@
+plugins {
+    id 'com.android.application'
+}
+
+def serverUrl = project.findProperty('SERVER_URL') ?: System.getenv('SERVER_URL') ?: ''
+
+android {
+    namespace 'com.kashani.holding'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.kashani.holding"
+        minSdk 24
+        targetSdk 35
+        versionCode 100
+        versionName "1.0.0-rc1"
+        buildConfigField "String", "SERVER_URL", '"' + serverUrl.replace('"','\\"') + '"'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+        }
+        release {
+            minifyEnabled false
+        }
+    }
+}
