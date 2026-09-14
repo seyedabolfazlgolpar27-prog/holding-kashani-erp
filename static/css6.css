@@ -1,0 +1,1 @@
+#view:empty:before{content:"در حال بارگذاری…";display:block;padding:28px;text-align:center;color:var(--muted)}.homeQuick{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.homeQuick .btn{min-height:46px}
