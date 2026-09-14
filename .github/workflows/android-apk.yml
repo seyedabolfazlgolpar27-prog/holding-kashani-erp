@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       server_url:
-        description: 'HTTPS server URL (optional; can be set on first app launch)'
+        description: 'Beta server URL'
         required: false
-        default: ''
+        default: 'http://93.126.18.48'
   push:
     branches: [ main ]
     paths:
@@ -36,10 +36,10 @@ jobs:
           gradle-version: '8.10.2'
       - name: Build debug APK
         env:
-          SERVER_URL: ${{ inputs.server_url || secrets.SERVER_URL }}
+          SERVER_URL: ${{ inputs.server_url || 'http://93.126.18.48' }}
         run: gradle :app:assembleDebug -PSERVER_URL="$SERVER_URL"
       - uses: actions/upload-artifact@v4
         with:
-          name: Holding-Kashani-RC1-APK
+          name: Holding-Kashani-Beta-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
