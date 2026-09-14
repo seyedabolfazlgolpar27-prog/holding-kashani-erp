@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:allowBackup="false"
-        android:label="هلدینگ کاشانی"
+        android:label="Holding Kashani"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="true">
         <activity
