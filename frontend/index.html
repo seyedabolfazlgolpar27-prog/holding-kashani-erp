@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#04040F">
+<title>هلدینگ کاشانی</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div id="loginRoot"></div>
+<div id="mainApp" class="app hidden">
+<header class="top"><div class="brand"><div class="brandSide"><div class="logoMark sm"><span>K</span></div><div><h1 id="appTitle">هلدینگ کاشانی</h1><small id="appSub"></small></div></div><div class="avatar" id="avatar">KH</div></div></header>
+<main id="view"></main>
+<nav class="bottom" aria-label="منوی اصلی">
+<button class="nav active" data-page="home" aria-label="خانه" onclick="page('home');navFeedback(this)"><img class="navIcon" src="/static/icons/home.svg" data-dark="/static/icons/home.svg" data-light="/static/icons/home.svg" alt=""><span class="navLabel">خانه</span></button>
+<button class="nav" data-page="daily" aria-label="ثبت روزانه" onclick="page('daily');navFeedback(this)"><img class="navIcon" src="/static/icons/daily.svg" data-dark="/static/icons/daily.svg" data-light="/static/icons/daily.svg" alt=""><span class="navLabel">ثبت روزانه</span></button>
+<button class="nav" data-page="reports" aria-label="گزارش‌ها" onclick="page('reports');navFeedback(this)"><img class="navIcon" src="/static/icons/reports.svg" data-dark="/static/icons/reports.svg" data-light="/static/icons/reports.svg" alt=""><span class="navLabel">گزارش‌ها</span></button>
+<button class="nav" data-page="rewards" aria-label="سکه و عملکرد" onclick="page('rewards');navFeedback(this)"><img class="navIcon" src="/static/icons/rewards.svg" data-dark="/static/icons/rewards.svg" data-light="/static/icons/rewards.svg" alt=""><span class="navLabel">سکه</span></button>
+<button class="nav" data-page="more" aria-label="بیشتر" onclick="page('more');navFeedback(this)"><img class="navIcon" src="/static/icons/more.svg" data-dark="/static/icons/more.svg" data-light="/static/icons/more.svg" alt=""><span class="navLabel">بیشتر</span></button>
+</nav>
+</div>
+<div id="modal" class="hidden"></div><div id="toast" class="toast"></div><div id="printRoot" class="printRoot hidden"></div>
+<script src="/static/app-core.js"></script>
+<script src="/static/app-ui.js"></script>
+</body></html>
