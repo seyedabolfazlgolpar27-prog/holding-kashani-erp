@@ -7,7 +7,7 @@ REPO=https://github.com/seyedabolfazlgolpar27-prog/holding-kashani-erp.git
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y git python3 python3-venv python3-pip nginx curl
+apt-get install -y git python3 python3-venv python3-pip python3-flask python3-werkzeug gunicorn nginx curl
 
 mkdir -p "$APP_DIR" "$DATA_DIR"
 if [ -d "$APP_DIR/.git" ]; then
@@ -18,9 +18,14 @@ else
   git clone "$REPO" "$APP_DIR"
 fi
 
-python3 -m venv "$APP_DIR/.venv"
-"$APP_DIR/.venv/bin/pip" install --upgrade pip
-"$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.txt"
+# Use Ubuntu's Python packages as a fallback so deployment does not depend on PyPI.
+rm -rf "$APP_DIR/.venv"
+python3 -m venv --system-site-packages "$APP_DIR/.venv"
+export PIP_DEFAULT_TIMEOUT=120
+export PIP_RETRIES=10
+if ! "$APP_DIR/.venv/bin/pip" install --disable-pip-version-check --timeout 120 --retries 10 -r "$APP_DIR/requirements.txt"; then
+  echo "WARNING: PyPI is unreachable/slow. Continuing with Ubuntu packaged Flask/Werkzeug/Gunicorn."
+fi
 
 cat >/etc/systemd/system/holding-kashani.service <<'EOF'
 [Unit]
@@ -33,7 +38,7 @@ WorkingDirectory=/opt/holding-kashani
 Environment=DATA_DIR=/var/lib/holding-kashani
 Environment=DB_PATH=/var/lib/holding-kashani/beta.db
 Environment=PORT=8080
-ExecStart=/opt/holding-kashani/.venv/bin/gunicorn --bind 127.0.0.1:8080 --workers 2 --threads 4 --timeout 60 app:app
+ExecStart=/opt/holding-kashani/.venv/bin/python -m gunicorn --bind 127.0.0.1:8080 --workers 2 --threads 4 --timeout 60 app:app
 Restart=always
 RestartSec=3
 
