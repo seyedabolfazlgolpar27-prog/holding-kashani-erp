@@ -18,3 +18,6 @@ function salesTeamsReport(mode='month'){
     {name:'تیم ادمینی',count:admins.count,amount:admins.amount,note:'ادمین PV کانال اصلی + ادمین پیج افراد'},
     {name:'تیم فروشنده تلفنی',count:phone.count,amount:phone.amount,note:'فروش نهایی منتسب به کال‌سنتر'},
     {name:'تیم ادمین مشاوره',count:consult.count,amount:consult.amount,note:`${fmt(consult.pv)} PV مشاوره · درآمد مشاوره مستقل`}
+  ];
+  return `<div class="card"><div class="row between"><h3 class="title" style="margin:0">گزارش فروش به تفکیک تیم</h3><span class="badge">گزارش مستقل تیم‌ها</span></div><div class="list" style="margin-top:12px">${rows.map(r=>`<div class="item"><div class="row between"><div><strong>${r.name}</strong><small>${r.note}</small></div><b>${money(r.amount)}</b></div><div class="grid2" style="margin-top:9px"><div class="metric"><span>تعداد</span><b>${fmt(r.count)}</b></div><div class="metric"><span>سهم مبلغ از سه تیم</span><b>${Math.round((r.amount/total)*100)}٪</b></div></div><div class="htrack" style="margin-top:10px"><div class="hfill" style="width:${Math.max(2,(r.amount/total)*100)}%"></div></div></div>`).join('')}</div></div>`;
+}
