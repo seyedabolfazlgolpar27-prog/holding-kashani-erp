@@ -1,4 +1,4 @@
-import os, sqlite3, json, secrets, datetime, threading
+import os, sqlite3, json, secrets, threading
 from functools import wraps
 from flask import Flask, request, jsonify, g, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -12,42 +12,13 @@ STATE_LOCK = threading.RLock()
 
 MANAGER = {'ceo', 'internal_manager', 'sales_manager', 'marshall_manager'}
 CREATE_USER_ROLES = {'ceo', 'internal_manager'}
-
-SEED_USERS = [
-    ('ceo','مدیرعامل','academy','ceo'),
-    ('internal','مدیر داخلی','academy','internal_manager'),
-    ('salesmanager','رضا مدیر فروش','academy','sales_manager'),
-    ('hesabdar','مریم حسابدار','academy','accountant'),
-    ('sabtenam','سارا ثبت‌نام','academy','registration_admin'),
-    ('adminpv','نگار ادمین PV','academy','admin_pv_main'),
-    ('adminpage','هانیه ادمین پیج','academy','admin_page'),
-    ('aghsat','رها پیگیری اقساط','academy','admin_installment'),
-    ('moshavere','نازنین مشاوره','academy','admin_consult'),
-    ('supportcore','آرزو پشتیبان','academy','support_core'),
-    ('supportcampaign','پشتیبان کمپین','academy','support_campaign'),
-    ('supportartiler','پشتیبان آرتیلر','academy','support_artiler'),
-    ('supportstrategy','پشتیبان استراتژی فروش','academy','support_strategy'),
-    ('supportai','پشتیبان هوش مصنوعی','academy','support_ai'),
-    ('supportmoney','پشتیبان ماشین پولساز','academy','support_money'),
-    ('callcenter','علی کال‌سنتر','academy','callcenter'),
-    ('marketing','نیلوفر مارکتینگ','academy','marketing_manager'),
-    ('product','سام مدیر محصول','academy','product_manager'),
-    ('content','تیم محتوا و گرافیک','academy','content_graphics'),
-    ('site','تیم سایت','academy','site_team'),
-    ('hr','مدیر منابع انسانی','academy','hr_manager'),
-    ('rnd','تیم R&D','academy','rnd'),
-    ('crm','مسئول CRM','academy','crm'),
-    ('marshallads','ادمین تبلیغات مارشال','marshall','marshall_ads'),
-    ('strategy','استراتژی‌نویس مارشال','marshall','marshall_strategy'),
-    ('coach','کوچ منیجر','marshall','marshall_coach'),
-    ('marshallmanager','مدیر مارشال','marshall','marshall_manager'),
-    ('sales','مدیر فروش','academy','sales_manager'),
-    ('register','ادمین ثبت‌نام','academy','registration_admin'),
-    ('pv','ادمین PV','academy','admin_pv_main'),
-    ('call','فروشنده تلفنی','academy','callcenter'),
-    ('support','پشتیبان','academy','support_core'),
-    ('accounting','حسابدار','academy','accountant'),
-]
+BOOTSTRAP_USERNAME = 'internal'
+LEGACY_DEMO_USERNAMES = {
+    'ceo','salesmanager','hesabdar','sabtenam','adminpv','adminpage','aghsat','moshavere',
+    'supportcore','supportcampaign','supportartiler','supportstrategy','supportai','supportmoney',
+    'callcenter','marketing','product','content','site','hr','rnd','crm','marshallads','strategy',
+    'coach','marshallmanager','sales','register','pv','call','support','accounting'
+}
 
 
 def db():
@@ -88,15 +59,31 @@ def init():
     CREATE TABLE IF NOT EXISTS tasks(id INTEGER PRIMARY KEY,title TEXT,details TEXT,assigned_to INTEGER,assigned_by INTEGER,due_at TEXT,reward INTEGER DEFAULT 0,status TEXT DEFAULT 'open',completed_at TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
     CREATE TABLE IF NOT EXISTS score_events(id INTEGER PRIMARY KEY,user_id INTEGER,points INTEGER,category TEXT,note TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
     ''')
-    default_password = os.getenv('DEFAULT_BETA_PASSWORD', 'Beta@1405')
-    for username, full_name, unit, role in SEED_USERS:
-        row = c.execute('SELECT id FROM users WHERE username=?', (username,)).fetchone()
-        if row is None:
-            c.execute('INSERT INTO users(username,password_hash,full_name,business_unit,role) VALUES(?,?,?,?,?)',
-                      (username, generate_password_hash(default_password), full_name, unit, role))
-        else:
-            c.execute('UPDATE users SET full_name=?,business_unit=?,role=?,active=1 WHERE username=?',
-                      (full_name, unit, role, username))
+
+    bootstrap_password = (os.getenv('INITIAL_INTERNAL_PASSWORD') or '').strip()
+    row = c.execute('SELECT id FROM users WHERE username=?', (BOOTSTRAP_USERNAME,)).fetchone()
+    if row is None:
+        # Production deploy script always supplies INITIAL_INTERNAL_PASSWORD.
+        # This fallback is only for local development and should be replaced immediately.
+        password = bootstrap_password or secrets.token_urlsafe(18)
+        c.execute(
+            'INSERT INTO users(username,password_hash,full_name,business_unit,role,active) VALUES(?,?,?,?,?,1)',
+            (BOOTSTRAP_USERNAME, generate_password_hash(password), 'مدیر داخلی', 'academy', 'internal_manager')
+        )
+    else:
+        if bootstrap_password:
+            c.execute('UPDATE users SET password_hash=? WHERE username=?',
+                      (generate_password_hash(bootstrap_password), BOOTSTRAP_USERNAME))
+        c.execute("UPDATE users SET full_name='مدیر داخلی',business_unit='academy',role='internal_manager',active=1 WHERE username=?",
+                  (BOOTSTRAP_USERNAME,))
+
+    # Disable every old shared beta/demo account. They can later be re-created by the
+    # internal manager with a private password from inside the app.
+    if LEGACY_DEMO_USERNAMES:
+        q = ','.join('?' for _ in LEGACY_DEMO_USERNAMES)
+        c.execute(f'UPDATE users SET active=0 WHERE username IN ({q})', tuple(LEGACY_DEMO_USERNAMES))
+        c.execute('DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE active=0)')
+
     for unit in ('academy','marshall'):
         c.execute("INSERT OR IGNORE INTO app_state(business_unit,payload,revision) VALUES(?,?,0)", (unit, '{}'))
     c.commit(); c.close()
@@ -162,7 +149,7 @@ def merge_state(old, new):
 
 @app.get('/health')
 def health():
-    return {'ok': True, 'service': 'holding-kashani', 'version': '2.0-v17-server'}
+    return {'ok': True, 'service': 'holding-kashani', 'version': '2.2-final-test'}
 
 
 @app.post('/api/auth/login')
@@ -177,7 +164,7 @@ def login():
         c.close(); return jsonify(error='invalid_credentials'), 401
     token = secrets.token_urlsafe(40)
     c.execute('INSERT INTO sessions(token,user_id) VALUES(?,?)', (token, u['id']))
-    c.execute("DELETE FROM sessions WHERE user_id=? AND token NOT IN (SELECT token FROM sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 8)", (u['id'],u['id']))
+    c.execute("DELETE FROM sessions WHERE user_id=? AND token NOT IN (SELECT token FROM sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 4)", (u['id'],u['id']))
     c.commit()
     o = dict(u); o.pop('password_hash', None)
     c.close()
@@ -231,7 +218,9 @@ def put_app_state():
 @manager
 def users():
     c=db()
-    if g.user['role'] in {'ceo','internal_manager'}:
+    if g.user['role'] == 'internal_manager':
+        rows=c.execute('SELECT id,username,full_name,business_unit,role,active FROM users ORDER BY business_unit,full_name').fetchall()
+    elif g.user['role'] == 'ceo':
         rows=c.execute('SELECT id,username,full_name,business_unit,role,active FROM users WHERE business_unit=? ORDER BY full_name',(g.user['business_unit'],)).fetchall()
     elif g.user['role']=='marshall_manager':
         rows=c.execute("SELECT id,username,full_name,business_unit,role,active FROM users WHERE business_unit='marshall' ORDER BY full_name").fetchall()
@@ -247,14 +236,51 @@ def add_user():
     d=request.get_json(silent=True) or {}
     required=['username','password','full_name','business_unit','role']
     if any(not d.get(k) for k in required): return jsonify(error='missing_fields'),400
-    if d['business_unit'] != g.user['business_unit']: return jsonify(error='wrong_business_unit'),403
+    if d['business_unit'] not in {'academy','marshall'}: return jsonify(error='wrong_business_unit'),400
+    if g.user['role'] != 'internal_manager' and d['business_unit'] != g.user['business_unit']:
+        return jsonify(error='wrong_business_unit'),403
+    username=d['username'].strip()
+    if len(username) < 3 or len(d['password']) < 6: return jsonify(error='weak_credentials'),400
     c=db()
-    try:
-        cur=c.execute('INSERT INTO users(username,password_hash,full_name,business_unit,role) VALUES(?,?,?,?,?)', (d['username'].strip(),generate_password_hash(d['password']),d['full_name'].strip(),d['business_unit'],d['role']))
-        uid=cur.lastrowid; c.commit()
-    except sqlite3.IntegrityError:
-        c.close(); return jsonify(error='username_exists'),409
-    c.close(); return {'ok':True,'id':uid},201
+    existing=c.execute('SELECT id,active FROM users WHERE username=?',(username,)).fetchone()
+    if existing:
+        if int(existing['active']) == 1:
+            c.close(); return jsonify(error='username_exists'),409
+        c.execute('UPDATE users SET password_hash=?,full_name=?,business_unit=?,role=?,active=1 WHERE id=?',
+                  (generate_password_hash(d['password']),d['full_name'].strip(),d['business_unit'],d['role'],existing['id']))
+        uid=existing['id']; c.commit(); c.close(); return {'ok':True,'id':uid,'reactivated':True},201
+    cur=c.execute('INSERT INTO users(username,password_hash,full_name,business_unit,role,active) VALUES(?,?,?,?,?,1)',
+                  (username,generate_password_hash(d['password']),d['full_name'].strip(),d['business_unit'],d['role']))
+    uid=cur.lastrowid; c.commit(); c.close(); return {'ok':True,'id':uid},201
+
+
+@app.patch('/api/users/<int:user_id>')
+@auth
+def update_user(user_id):
+    if g.user['role'] != 'internal_manager': return jsonify(error='forbidden'),403
+    d=request.get_json(silent=True) or {}
+    c=db(); target=c.execute('SELECT * FROM users WHERE id=?',(user_id,)).fetchone()
+    if not target: c.close(); return jsonify(error='not_found'),404
+    if target['username'] == BOOTSTRAP_USERNAME and d.get('active') is False:
+        c.close(); return jsonify(error='cannot_deactivate_self'),400
+    fields=[]; vals=[]
+    if d.get('full_name'):
+        fields.append('full_name=?'); vals.append(d['full_name'].strip())
+    if d.get('business_unit') in {'academy','marshall'}:
+        fields.append('business_unit=?'); vals.append(d['business_unit'])
+    if d.get('role'):
+        fields.append('role=?'); vals.append(d['role'])
+    if isinstance(d.get('active'), bool):
+        fields.append('active=?'); vals.append(1 if d['active'] else 0)
+    if d.get('password'):
+        if len(d['password']) < 6: c.close(); return jsonify(error='weak_credentials'),400
+        fields.append('password_hash=?'); vals.append(generate_password_hash(d['password']))
+    if fields:
+        vals.append(user_id); c.execute('UPDATE users SET '+','.join(fields)+' WHERE id=?',vals)
+        if isinstance(d.get('active'), bool) and not d['active']:
+            c.execute('DELETE FROM sessions WHERE user_id=?',(user_id,))
+        c.commit()
+    c.close(); return {'ok':True}
 
 
 @app.get('/')
