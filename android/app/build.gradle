@@ -9,7 +9,7 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId "com.kashani.holding.v17"
+        applicationId "com.kashani.holding.finaltest"
         minSdk 24
         targetSdk 35
         versionCode 220
