@@ -3,11 +3,13 @@ set -euo pipefail
 
 APP_DIR=/opt/holding-kashani
 DATA_DIR=/var/lib/holding-kashani
+ENV_FILE=/etc/holding-kashani.env
+CRED_FILE=/root/holding-kashani-internal-credentials.txt
 REPO=https://github.com/seyedabolfazlgolpar27-prog/holding-kashani-erp.git
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y git python3 python3-venv python3-pip python3-flask python3-werkzeug gunicorn nginx curl
+apt-get install -y git python3 python3-venv python3-pip python3-flask python3-werkzeug gunicorn nginx curl openssl
 
 mkdir -p "$APP_DIR" "$DATA_DIR"
 if [ -d "$APP_DIR/.git" ]; then
@@ -17,6 +19,18 @@ else
   rm -rf "$APP_DIR"/*
   git clone "$REPO" "$APP_DIR"
 fi
+
+# Create one private bootstrap credential for the internal manager.
+# It is stored only on this VPS and is not committed to GitHub.
+if [ ! -f "$ENV_FILE" ] || ! grep -q '^INITIAL_INTERNAL_PASSWORD=' "$ENV_FILE"; then
+  INTERNAL_PASSWORD="HK-$(openssl rand -hex 12)"
+  printf 'INITIAL_INTERNAL_PASSWORD=%s\n' "$INTERNAL_PASSWORD" > "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+else
+  INTERNAL_PASSWORD="$(sed -n 's/^INITIAL_INTERNAL_PASSWORD=//p' "$ENV_FILE" | head -n1)"
+fi
+printf 'username: internal\npassword: %s\n' "$INTERNAL_PASSWORD" > "$CRED_FILE"
+chmod 600 "$CRED_FILE"
 
 # Use Ubuntu's Python packages as a fallback so deployment does not depend on PyPI.
 rm -rf "$APP_DIR/.venv"
@@ -29,7 +43,7 @@ fi
 
 cat >/etc/systemd/system/holding-kashani.service <<'EOF'
 [Unit]
-Description=Holding Kashani Beta API
+Description=Holding Kashani ERP API
 After=network.target
 
 [Service]
@@ -38,6 +52,7 @@ WorkingDirectory=/opt/holding-kashani
 Environment=DATA_DIR=/var/lib/holding-kashani
 Environment=DB_PATH=/var/lib/holding-kashani/beta.db
 Environment=PORT=8080
+EnvironmentFile=-/etc/holding-kashani.env
 ExecStart=/opt/holding-kashani/.venv/bin/python -m gunicorn --bind 127.0.0.1:8080 --workers 2 --threads 4 --timeout 60 app:app
 Restart=always
 RestartSec=3
@@ -52,6 +67,18 @@ server {
     listen [::]:80 default_server;
     server_name _;
     client_max_body_size 10m;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 512;
+    gzip_types text/plain text/css application/json application/javascript image/svg+xml;
+
+    location /static/ {
+        alias /opt/holding-kashani/static/;
+        expires 7d;
+        add_header Cache-Control "public, max-age=604800";
+        access_log off;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -79,4 +106,4 @@ fi
 
 sleep 2
 curl -fsS http://127.0.0.1:8080/health
-printf '\n\nHolding Kashani Beta is running.\nOpen: http://93.126.18.48\nDefault beta password: Beta@1405\n'
+printf '\n\nHolding Kashani is running.\nOpen: http://93.126.18.48\n\nONLY ACTIVE BOOTSTRAP ACCOUNT:\nusername: internal\npassword: %s\n\nCredentials also saved at: %s\n' "$INTERNAL_PASSWORD" "$CRED_FILE"
