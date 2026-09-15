@@ -1,0 +1,73 @@
+/* Holding Kashani V18 — HR history, Jalali, exports, announcements/chat, 3D-look avatar, native-like navigation */
+(function(){
+'use strict';
+roleNames.support_core='پشتیبان';
+const BOOT='internal';
+const NAV_ORDER=['home','daily','reports','rewards','more'];
+let v18Employees=[], v18NotifTimer=null, v18LastNotif=0, v18ChatTimer=null, v18Page='home', v18Direction=1;
+const V18_SKINS=['#F9D7BD','#E8B28E','#D49770','#B97857','#86533E'];
+const V18_HAIR=['#11151D','#33231D','#68442F','#9A673A','#D0A153'];
+const V18_SHIRT=['#1052AB','#0C2C70','#4282CC','#166557','#6B4FA3'];
+const V18_AV={gender:'male',face:1,hair:1,eyes:1,glasses:0,mouth:1,facialHair:0,skin:'#D49770',hairColor:'#171D2B',shirt:'#1052AB'};
+
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function isManager(){return ['internal_manager','ceo','sales_manager','marshall_manager'].includes(user()?.role)}
+function isInternal(){return user()?.role==='internal_manager'}
+function serverIdOf(x){if(!x)return null;if(x.serverId)return Number(x.serverId);const m=String(x.id||'').match(/custom_server_(\d+)/);return m?Number(m[1]):null}
+function daysToText(d){d=Math.max(0,Number(d||0));const y=Math.floor(d/365),m=Math.floor((d%365)/30),dd=Math.floor(d%30);return [y?`${fmt(y)} سال`:'',m?`${fmt(m)} ماه`:'',(!y&&!m||dd)?`${fmt(dd)} روز`:''].filter(Boolean).join(' و ')}
+
+/* Keep archived identities in memory so historical reports never lose their owner. */
+allUsers=function(){
+  const boot=baseUsers.filter(x=>x.username===BOOT).map(x=>({...x,active:true,serverId:v18Employees.find(e=>e.username===BOOT)?.id}));
+  const custom=Array.isArray(state.customUsers)?state.customUsers:[];
+  const map=new Map();for(const x of [...boot,...custom]){const k=x.serverId?`s${x.serverId}`:`u${x.username||x.id}`;map.set(k,x)}return [...map.values()]
+};
+accessibleUsers=function(u){
+  const active=allUsers().filter(x=>x.active!==false);
+  if(u.role==='ceo'||u.role==='internal_manager')return active.filter(x=>x.id!==u.id&&x.role!=='ceo');
+  if(u.role==='sales_manager')return active.filter(x=>x.division==='academy'&&salesTeamRoles.includes(x.role));
+  if(u.role==='marshall_manager')return active.filter(x=>x.division==='marshall'&&x.id!==u.id);return []
+};
+async function refreshEmployees(){
+  if(!apiToken||!isManager())return;
+  try{
+    const d=await api('/api/v18/users');v18Employees=d.users||[];
+    const old=new Map((state.customUsers||[]).map(x=>[Number(x.serverId||-1),x]));
+    const me=await api('/api/me').catch(()=>null);
+    const rows=v18Employees.filter(e=>e.username!==BOOT || e.id!==me?.id);
+    const next=rows.map(e=>{const prev=old.get(Number(e.id))||{};return {...prev,id:prev.id||`custom_server_${e.id}`,serverId:e.id,division:e.business_unit,role:e.role,name:e.full_name,username:e.username,active:!!e.active,tenureDays:Number(e.tenure_days||0),archivedAt:e.archived_at||'',archiveReason:e.archive_reason||''}});
+    state.customUsers=next;localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+  }catch(e){console.warn('employee sync',e)}
+}
+const _loadRemote=loadRemoteState;
+loadRemoteState=async function(){const ok=await _loadRemote();await refreshEmployees();return ok};
+
+/* Push token into Android bridge and add utility buttons after every mount. */
+const _mountApp=mountApp;
+mountApp=function(){
+  _mountApp();roleNames.support_core='پشتیبان';
+  if(window.AndroidBridge&&apiToken){try{AndroidBridge.setToken(apiToken)}catch(_){}}
+  installHeaderTools();startNotificationPolling();refreshEmployees().then(()=>{});
+};
+
+function installHeaderTools(){
+  const brand=document.querySelector('.top .brand');if(!brand)return;
+  let tools=document.querySelector('.brandTools');if(!tools){
+    tools=document.createElement('div');tools.className='brandTools';tools.innerHTML=`
+      <span class="topGlassWrap"><button class="topGlassBtn" onclick="openV18Inbox()" aria-label="اعلان‌ها">🔔</button><i id="v18NotifDot" class="notifDot hidden"></i></span>
+      <button class="topGlassBtn" onclick="openV18Groups()" aria-label="گروه‌ها">💬</button>
+      <button class="topGlassBtn" onclick="openV18Settings()" aria-label="تنظیمات">⚙</button>`;
+    const avatar=brand.querySelector('#avatar');brand.insertBefore(tools,avatar);
+  }
+}
+
+/* Composite-only page animation; no slow scroll animation. */
+renderPage=function(name){
+  const target=NAV_ORDER.includes(name)?name:'home';const from=NAV_ORDER.indexOf(v18Page),to=NAV_ORDER.indexOf(target);v18Direction=to>=from?1:-1;
+  $$('.nav').forEach(n=>{const a=n.dataset.page===target;n.classList.toggle('active',a);if(a)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current')});
+  try{if(target==='home')home();else if(target==='daily')daily();else if(target==='reports')reports();else if(target==='rewards')rewards();else more()}catch(e){console.error(e);try{home()}catch(_){}}
+  const v=$('#view');if(v&&target!==v18Page){v.classList.remove('v18PageIn','v18PageBack');void v.offsetWidth;v.classList.add(v18Direction>0?'v18PageIn':'v18PageBack')}
+  v18Page=target;window.scrollTo(0,0);installHeaderTools();
+};
+page=function(name){renderPage(name)};
+
