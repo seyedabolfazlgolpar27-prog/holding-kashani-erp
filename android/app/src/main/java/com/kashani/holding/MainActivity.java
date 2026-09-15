@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.view.View;
 import android.view.Window;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -17,6 +18,7 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
     private WebView webView;
     private String serverUrl;
+    private boolean firstLoad = true;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -30,7 +32,9 @@ public class MainActivity extends Activity {
         if (serverUrl.isEmpty()) serverUrl = "http://93.126.18.48";
 
         webView = new WebView(this);
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         setContentView(webView);
+
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -38,16 +42,23 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         settings.setTextZoom(100);
+        settings.setLoadsImagesAutomatically(true);
+        settings.setBlockNetworkImage(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
-        settings.setUserAgentString(settings.getUserAgentString() + " HoldingKashaniAndroid/2.0-V17");
+        settings.setOffscreenPreRaster(true);
+        settings.setUserAgentString(settings.getUserAgentString() + " HoldingKashaniAndroid/2.2-FinalTest");
 
-        webView.clearCache(true);
         webView.setWebChromeClient(new WebChromeClient());
         webView.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                firstLoad = false;
+            }
+
             @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 super.onReceivedError(view, request, error);
                 if (request.isForMainFrame()) showConnectionError();
@@ -59,7 +70,7 @@ public class MainActivity extends Activity {
 
     private void loadServer() {
         String url = serverUrl.endsWith("/") ? serverUrl : serverUrl + "/";
-        Toast.makeText(this, "اتصال به سرور...", Toast.LENGTH_SHORT).show();
+        if (firstLoad) Toast.makeText(this, "اتصال به سرور...", Toast.LENGTH_SHORT).show();
         webView.loadUrl(url);
     }
 
