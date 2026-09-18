@@ -14,3 +14,7 @@ body{font-size:13px;letter-spacing:-.08px}h1,h2,h3,h4,p{margin-block-start:0}.ti
 .settingsHero{padding:13px}.settingsRows{display:grid;gap:7px}.settingsRow{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--glassLine);border-radius:15px;background:rgba(6,13,42,.54);padding:10px}.settingsRow strong{font-size:11.3px}.settingsRow small{font-size:9px;color:#86acd2;display:block;margin-top:3px}
 @media(max-width:390px){.avatarStudio{grid-template-columns:128px minmax(0,1fr);gap:8px}.avatarStudioPreview{min-height:270px;padding:8px}.avatar3dWrap{width:126px;height:180px}.avatar3dModel{width:125px;height:166px}.avatarThumb{height:75px}.avatarThumb .avatar3dModel{width:55px;height:68px}.reportPresetGrid{grid-template-columns:repeat(2,1fr)}.jalaliRange{grid-template-columns:1fr}.topGlassBtn{width:34px;height:34px}.brand h1{font-size:13px!important}}
 @media(prefers-reduced-motion:reduce){.v18PageIn,.v18PageBack{animation:none!important}.navIcon{transition:none!important}}
+
+/* V18.2 — character/avatar removed */
+.avatar,.avatarShell,.avatarSvg,.avatar3dModel,.avatar3dWrap,.avatarStudio,.avatarStudioPreview,.avatarStudioControls,.avatarChoices,.avatarChoice,.avatarFeatureTabs,.avatarFeaturePanel,.avatarThumbGrid,.avatarPalette,[id*="avatarBuilder"],[id*="AvatarBuilder"]{display:none!important}
+.brand{grid-template-columns:1fr!important}
