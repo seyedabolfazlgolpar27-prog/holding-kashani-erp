@@ -20,8 +20,14 @@ def ensure_schema():
     CREATE TABLE IF NOT EXISTS chat_messages(id INTEGER PRIMARY KEY,group_id INTEGER NOT NULL,user_id INTEGER NOT NULL,body TEXT NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(group_id) REFERENCES chat_groups(id),FOREIGN KEY(user_id) REFERENCES users(id));
     ''')
     cols={r['name'] for r in c.execute('PRAGMA table_info(users)').fetchall()}
-    if 'archived_at' not in cols:c.execute('ALTER TABLE users ADD COLUMN archived_at TEXT')
-    if 'archive_reason' not in cols:c.execute('ALTER TABLE users ADD COLUMN archive_reason TEXT')
+    if 'archived_at' not in cols:
+        try:c.execute('ALTER TABLE users ADD COLUMN archived_at TEXT')
+        except sqlite3.OperationalError as e:
+            if 'duplicate column' not in str(e).lower():raise
+    if 'archive_reason' not in cols:
+        try:c.execute('ALTER TABLE users ADD COLUMN archive_reason TEXT')
+        except sqlite3.OperationalError as e:
+            if 'duplicate column' not in str(e).lower():raise
     for u in c.execute('SELECT id,active,date(created_at) d FROM users').fetchall():
         if not c.execute('SELECT 1 FROM employment_periods WHERE user_id=? LIMIT 1',(u['id'],)).fetchone():
             c.execute('INSERT INTO employment_periods(user_id,start_date,end_date) VALUES(?,?,?)',(u['id'],u['d'] or date.today().isoformat(),None if u['active'] else date.today().isoformat()))
