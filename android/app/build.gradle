@@ -9,11 +9,11 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId "com.kashani.holding.v182test"
+        applicationId "com.kashani.holding.v183test"
         minSdk 24
         targetSdk 35
-        versionCode 1820
-        versionName "18.2-test"
+        versionCode 1830
+        versionName "18.3-test"
         buildConfigField "String", "SERVER_URL", '"' + serverUrl.replace('"','\\"') + '"'
     }
 
