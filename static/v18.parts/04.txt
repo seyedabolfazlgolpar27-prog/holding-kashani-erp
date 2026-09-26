@@ -1,8 +1,41 @@
 /* ---------- Employee management + permanent archive ---------- */
 employeeRoleSelect=function(){const div=$('#emp_division')?.value||'academy',el=$('#emp_role');if(!el)return;el.innerHTML=roleOptionsForDivision(div).filter(([k])=>k!=='ceo').map(([k,v])=>`<option value="${k}">${v}</option>`).join('')};
-openEmployeeSettings=async function(){await refreshEmployees();renderEmployeeManager('active')};
+openEmployeeSettings=async function(){
+  try{
+    const d=await api('/api/v18/users');
+    v18Employees=d.users||[];
+    renderEmployeeManager('active');
+  }catch(e){
+    const msg=e.status===401?'نشست ورود منقضی شده؛ یک‌بار خارج و دوباره وارد شو':e.status===403?'این حساب دسترسی مدیریت نیرو ندارد':e.status===404?'ماژول مدیریت نیرو روی سرور فعال نیست؛ سرور باید به نسخه ۱۸.۳ آپدیت شود':'ارتباط با سرور مدیریت نیرو برقرار نشد';
+    modal('مدیریت نیروها',`<div class="notice">${msg}</div><button class="btn" style="margin-top:10px" onclick="openEmployeeSettings()">تلاش دوباره</button>`);
+  }
+};
 window.renderEmployeeManager=function(tab='active'){const rows=v18Employees.filter(x=>x.username!==BOOT),active=rows.filter(x=>x.active),arch=rows.filter(x=>!x.active),list=tab==='active'?active:arch;modal('مدیریت نیروها',`<div class="card"><h3 class="title">ساخت حساب نیروی جدید</h3><div class="field"><label>نام و نام خانوادگی</label><input id="emp_name"></div><div class="grid2"><div class="field"><label>واحد</label><select id="emp_division" onchange="employeeRoleSelect()"><option value="academy">آکادمی کاشانی</option><option value="marshall">تیم مارشال</option></select></div><div class="field"><label>پوزیشن</label><select id="emp_role"></select></div></div><div class="grid2"><div class="field"><label>نام کاربری اختصاصی</label><input id="emp_username" autocomplete="off"></div><div class="field"><label>رمز اختصاصی</label><input id="emp_password" type="password" autocomplete="new-password"></div></div><button class="btn" onclick="addEmployee()">+ ساخت حساب</button><div class="muted" style="margin-top:7px">هر شخص یک هویت دائمی دارد. نام کاربری نیروی قبلی برای فرد جدید دوباره استفاده نمی‌شود.</div></div><div class="employeeTabs"><button class="chip ${tab==='active'?'active':''}" onclick="renderEmployeeManager('active')">فعال (${fmt(active.length)})</button><button class="chip ${tab==='archive'?'active':''}" onclick="renderEmployeeManager('archive')">آرشیو (${fmt(arch.length)})</button></div><div>${list.length?list.map(e=>`<div class="employeeCard ${e.active?'':'inactive'}"><div class="row between"><div class="grow"><strong>${esc(e.full_name)}</strong><div class="muted">${esc(roleNames[e.role]||e.role)} · ${esc(divisionNames[e.business_unit])}</div></div><span class="badge ${e.active?'gold':''}">${e.active?'فعال':'آرشیو'}</span></div><div class="employeeMeta"><span class="tag">سابقه ${daysToText(e.tenure_days)}</span><span class="tag">${esc(e.username)}</span>${e.archive_reason?`<span class="tag">${esc(e.archive_reason)}</span>`:''}</div><div class="grid2" style="margin-top:8px"><button class="btn sm ghost" onclick="openEmployeeHistory(${e.id})">سوابق و روند</button><button class="btn sm ${e.active?'alt':'ghost'}" onclick="manageEmployeeV18(${e.id})">${e.active?'مدیریت':'بازگشت به همکاری'}</button></div></div>`).join(''):'<div class="empty">موردی نیست.</div>'}</div>`);employeeRoleSelect()};
-addEmployee=async function(){const name=$('#emp_name').value.trim(),business_unit=$('#emp_division').value,role=$('#emp_role').value,username=$('#emp_username').value.trim(),password=$('#emp_password').value;if(!name||!username||!password)return toast('اطلاعات را کامل کن');if(password.length<6)return toast('رمز حداقل ۶ کاراکتر باشد');try{await api('/api/v18/users',{method:'POST',body:JSON.stringify({full_name:name,business_unit,role,username,password})});await refreshEmployees();renderEmployeeManager('active');toast('حساب جدید ساخته شد')}catch(e){toast(e.message==='username_reserved_for_history'?'این نام کاربری متعلق به یک هویت قبلی است؛ نام جدید انتخاب کن':e.message==='username_exists'?'نام کاربری تکراری است':'ساخت حساب انجام نشد')}};
+addEmployee=async function(){
+  const name=$('#emp_name')?.value.trim()||'',business_unit=$('#emp_division')?.value||'',role=$('#emp_role')?.value||'',username=($('#emp_username')?.value||'').trim().toLowerCase(),password=$('#emp_password')?.value||'';
+  if(!name||!business_unit||!role||!username||!password)return toast('نام، واحد، پوزیشن، نام کاربری و رمز را کامل کن');
+  if(username.length<3)return toast('نام کاربری حداقل ۳ کاراکتر باشد');
+  if(password.length<6)return toast('رمز حداقل ۶ کاراکتر باشد');
+  const btn=[...document.querySelectorAll('button')].find(x=>x.getAttribute('onclick')==='addEmployee()');
+  if(btn){btn.disabled=true;btn.textContent='در حال ساخت...'}
+  try{
+    const d=await api('/api/v18/users',{method:'POST',body:JSON.stringify({full_name:name,business_unit,role,username,password})});
+    const list=await api('/api/v18/users');v18Employees=list.users||[];
+    renderEmployeeManager('active');toast('حساب '+name+' ساخته شد');
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='+ ساخت حساب'}
+    const m=e.message||'';
+    const msg=m==='username_reserved_for_history'?'این نام کاربری قبلاً برای یک نیروی دیگر ثبت شده؛ برای حفظ سابقه، نام کاربری جدید انتخاب کن':
+      m==='username_exists'?'این نام کاربری در حال استفاده است':
+      m==='weak_credentials'?'نام کاربری یا رمز کوتاه است':
+      m==='wrong_business_unit'?'مجوز ساخت نیرو در این واحد وجود ندارد':
+      e.status===401?'نشست ورود منقضی شده؛ خارج شو و دوباره وارد شو':
+      e.status===403?'این حساب اجازه ساخت نیرو ندارد':
+      e.status===404?'ماژول ساخت نیرو روی سرور قدیمی است؛ VPS را آپدیت کن':
+      'ساخت حساب انجام نشد ('+(m||('HTTP '+(e.status||'')))+')';
+    toast(msg);
+  }
+};
 window.manageEmployeeV18=function(id){const e=v18Employees.find(x=>Number(x.id)===Number(id));if(!e)return;if(!e.active){modal('بازگشت '+esc(e.full_name),`<div class="info">سوابق قبلی حذف نمی‌شود و یک دوره همکاری جدید به همان پرونده اضافه می‌شود.</div><button class="btn" style="margin-top:10px" onclick="reactivateEmployeeV18(${id})">فعال‌سازی مجدد</button>`);return}modal('مدیریت '+esc(e.full_name),`<div class="field"><label>رمز جدید (اختیاری)</label><input id="v18_new_pass" type="password"></div><button class="btn ghost" onclick="changeEmployeePassV18(${id})">تغییر رمز</button><div class="divider"></div><div class="field"><label>علت پایان همکاری</label><input id="v18_archive_reason" placeholder="مثلاً پایان قرارداد"></div><button class="btn alt" onclick="archiveEmployeeV18(${id})">پایان همکاری و انتقال به آرشیو</button><div class="notice" style="margin-top:9px">هیچ گزارش، فروش، Task یا سابقه‌ای پاک نمی‌شود.</div>`)};
 window.changeEmployeePassV18=async function(id){const password=$('#v18_new_pass').value;if(password.length<6)return toast('رمز حداقل ۶ کاراکتر');try{await api('/api/v18/users/'+id,{method:'PATCH',body:JSON.stringify({password})});closeModal();toast('رمز تغییر کرد')}catch(_){toast('خطا در تغییر رمز')}};
 window.archiveEmployeeV18=async function(id){const reason=$('#v18_archive_reason').value.trim()||'پایان همکاری';try{await api('/api/v18/users/'+id,{method:'PATCH',body:JSON.stringify({active:false,reason})});await refreshEmployees();renderEmployeeManager('archive');toast('نیرو آرشیو شد؛ داده‌ها حفظ شدند')}catch(_){toast('آرشیو انجام نشد')}};
