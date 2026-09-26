@@ -149,7 +149,7 @@ def merge_state(old, new):
 
 @app.get('/health')
 def health():
-    return {'ok': True, 'service': 'holding-kashani', 'version': '2.2-final-test'}
+    return {'ok': True, 'service': 'holding-kashani', 'version': '18.3-test'}
 
 
 @app.post('/api/auth/login')
@@ -298,5 +298,16 @@ def no_cache(resp):
 
 
 init()
+
+# Register V18 modules explicitly. Do not rely on sitecustomize/gunicorn import order.
+from v18_common import ensure_schema as ensure_v18_schema
+from v18_hr import register as register_v18_hr
+from v18_comms import register as register_v18_comms
+from v18_export import register as register_v18_export
+ensure_v18_schema()
+register_v18_hr(app)
+register_v18_comms(app)
+register_v18_export(app)
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT','8080')))
