@@ -58,7 +58,7 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         settings.setTextZoom(100);
@@ -66,7 +66,7 @@ public class MainActivity extends Activity {
         settings.setBlockNetworkImage(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         settings.setOffscreenPreRaster(true);
-        settings.setUserAgentString(settings.getUserAgentString() + " HoldingKashaniAndroid/18.1-Test");
+        settings.setUserAgentString(settings.getUserAgentString() + " HoldingKashaniAndroid/18.4-Test");
 
         webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
         webView.setWebChromeClient(new WebChromeClient());
@@ -142,7 +142,8 @@ public class MainActivity extends Activity {
     }
 
     private void loadServer() {
-        String url = serverUrl.endsWith("/") ? serverUrl : serverUrl + "/";
+        String base = serverUrl.endsWith("/") ? serverUrl : serverUrl + "/";
+        String url = base + "?app=18.4";
         if (firstLoad) Toast.makeText(this, "اتصال به سرور...", Toast.LENGTH_SHORT).show();
         webView.loadUrl(url);
     }
