@@ -1,30 +1,93 @@
-/* Holding Kashani V18.3 — avatar/character removed completely, without wrapping page renderers */
+/* Holding Kashani V18.4 — no character system + stable employee management */
 (function(){
 'use strict';
-function stripAvatarUi(root=document){
-  try{
-    root.querySelectorAll('.avatar,.avatarShell,.avatarSvg,.avatar3dModel,.avatar3dWrap,.avatarStudio,.avatarStudioPreview,.avatarStudioControls,.avatarChoices,.avatarChoice,.avatarFeatureTabs,.avatarFeaturePanel,.avatarThumbGrid,.avatarPalette,[id*="avatarBuilder"],[id*="AvatarBuilder"]').forEach(el=>el.remove());
-    root.querySelectorAll('[onclick]').forEach(el=>{const oc=el.getAttribute('onclick')||'';if(/openAvatar|AvatarCustomizer|avatarCustomizer/.test(oc))el.remove()});
-  }catch(_){}
-}
+
+/* Character feature is intentionally disabled. Do not mutate the DOM continuously. */
 try{
   if(typeof state!=='undefined'){
     state.avatars={};
-    if(typeof STORAGE_KEY!=='undefined')localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+    if(typeof STORAGE_KEY!=='undefined') localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
   }
 }catch(_){}
 window.avatarSvg=function(){return ''};
 window.openAvatarCustomizer=function(){if(typeof toast==='function')toast('بخش کاراکتر حذف شده است')};
+
+/* Remove only known avatar placeholders once after each app mount. */
+function removeAvatarNodes(){
+  try{
+    document.querySelectorAll('.avatar,.avatarShell,.avatarSvg,.avatar3dModel,.avatar3dWrap,.avatarStudio,[id*="avatarBuilder"],[id*="AvatarBuilder"]').forEach(el=>el.remove());
+  }catch(_){}
+}
+if(typeof mountApp==='function'){
+  const _mountV184=mountApp;
+  mountApp=function(){_mountV184();removeAvatarNodes()};
+}
+
+/* Settings without any character option. */
 window.openV18Settings=function(){
   modal('تنظیمات',`<div class="settingsRows">
     <div class="settingsRow"><div><strong>ظاهر اپ</strong><small>حالت روشن / تیره برای همین حساب</small></div><button class="chip" onclick="toggleTheme();openV18Settings()">${currentTheme()==='dark'?'تیره':'روشن'}</button></div>
-    ${isInternal()?`<div class="settingsRow"><div><strong>نیروها و دسترسی</strong><small>حساب، سابقه، آرشیو و رمزها</small></div><button class="chip" onclick="openEmployeeSettings()">مدیریت</button></div><div class="settingsRow"><div><strong>دوره‌ها و قیمت‌ها</strong><small>فعال‌سازی و قیمت پایه</small></div><button class="chip" onclick="openCourseSettings()">مدیریت</button></div>`:''}
+    ${isInternal()?`<div class="settingsRow"><div><strong>نیروها و دسترسی</strong><small>ساخت حساب، رمز، فعال/غیرفعال</small></div><button class="chip" onclick="openEmployeeSettings()">مدیریت</button></div>
+    <div class="settingsRow"><div><strong>دوره‌ها و قیمت‌ها</strong><small>فعال‌سازی و قیمت پایه</small></div><button class="chip" onclick="openCourseSettings()">مدیریت</button></div>`:''}
     <div class="settingsRow"><div><strong>اعلان‌ها</strong><small>پیام‌های مدیریت و Taskها</small></div><button class="chip" onclick="openV18Inbox()">مشاهده</button></div>
     <div class="settingsRow"><div><strong>گروه‌های تیم</strong><small>گفت‌وگوی داخلی تیم‌ها</small></div><button class="chip" onclick="openV18Groups()">گروه‌ها</button></div>
   </div>`);
-  stripAvatarUi(document);
 };
-stripAvatarUi(document);
-const obs=new MutationObserver(()=>stripAvatarUi(document));
-obs.observe(document.documentElement,{childList:true,subtree:true});
+
+/* Use the stable core account API so user creation does not depend on V18 extension loading. */
+window.openEmployeeSettings=async function(){
+  let rows=[];
+  try{
+    const d=await api('/api/users');
+    rows=d.users||[];
+  }catch(e){
+    return toast(e.message==='unauthorized'?'نشست شما منقضی شده؛ دوباره وارد شوید':'دریافت فهرست نیروها انجام نشد');
+  }
+  const active=rows.filter(x=>x.active && x.username!=='internal');
+  const inactive=rows.filter(x=>!x.active && x.username!=='internal');
+  modal('مدیریت نیروها',`
+    <div class="card">
+      <h3 class="title">ساخت حساب نیروی جدید</h3>
+      <div class="field"><label>نام و نام خانوادگی</label><input id="emp_name"></div>
+      <div class="grid2">
+        <div class="field"><label>واحد</label><select id="emp_division" onchange="employeeRoleSelect()"><option value="academy">آکادمی کاشانی</option><option value="marshall">تیم مارشال</option></select></div>
+        <div class="field"><label>سمت</label><select id="emp_role"></select></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>نام کاربری اختصاصی</label><input id="emp_username" autocomplete="off" autocapitalize="none"></div>
+        <div class="field"><label>رمز اختصاصی</label><input id="emp_password" type="password" autocomplete="new-password" placeholder="حداقل ۶ کاراکتر"></div>
+      </div>
+      <button class="btn" id="emp_create_btn" onclick="addEmployee()">+ ساخت حساب</button>
+      <div class="muted" style="margin-top:7px">اطلاعات ورود فقط توسط مدیریت تعیین می‌شود.</div>
+    </div>
+    <div class="sectionLabel">نیروهای فعال</div>
+    <div class="list">${active.length?active.map(x=>`<div class="item"><div class="row between"><div><strong>${esc(x.full_name)}</strong><small>${esc(divisionNames[x.business_unit]||x.business_unit)} · ${esc(roleNames[x.role]||x.role)} · ${esc(x.username)}</small></div><button class="chip" onclick="manageServerUser(${x.id},'${esc(String(x.full_name)).replace(/'/g,"\\'")}')">مدیریت</button></div></div>`).join(''):'<div class="empty">هنوز نیروی فعالی ساخته نشده است.</div>'}</div>
+    ${inactive.length?`<div class="sectionLabel">غیرفعال / آرشیو</div><div class="list">${inactive.map(x=>`<div class="item"><div><strong>${esc(x.full_name)}</strong><small>${esc(x.username)} · ${esc(roleNames[x.role]||x.role)}</small></div><span class="tag">غیرفعال</span></div>`).join('')}</div>`:''}
+  `);
+  employeeRoleSelect();
+};
+
+window.addEmployee=async function(){
+  const name=$('#emp_name')?.value.trim()||'';
+  const business_unit=$('#emp_division')?.value||'academy';
+  const role=$('#emp_role')?.value||'';
+  const username=$('#emp_username')?.value.trim()||'';
+  const password=$('#emp_password')?.value||'';
+  if(!name||!role||!username||!password)return toast('همه اطلاعات نیرو را کامل کنید');
+  if(username.length<3)return toast('نام کاربری حداقل ۳ کاراکتر باشد');
+  if(password.length<6)return toast('رمز حداقل ۶ کاراکتر باشد');
+  const btn=$('#emp_create_btn'); if(btn){btn.disabled=true;btn.textContent='در حال ساخت...'}
+  try{
+    await api('/api/users',{method:'POST',body:JSON.stringify({full_name:name,business_unit,role,username,password})});
+    toast('حساب نیرو با موفقیت ساخته شد');
+    await openEmployeeSettings();
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='+ ساخت حساب'}
+    const map={username_exists:'این نام کاربری قبلاً استفاده شده',weak_credentials:'نام کاربری یا رمز کوتاه است',forbidden:'این حساب اجازه ساخت نیرو ندارد',wrong_business_unit:'دسترسی این واحد برای شما مجاز نیست'};
+    toast(map[e.message]||('ساخت حساب انجام نشد: '+e.message));
+  }
+};
+
+window.manageServerUser=window.manageServerUser||function(){};
+removeAvatarNodes();
 })();
