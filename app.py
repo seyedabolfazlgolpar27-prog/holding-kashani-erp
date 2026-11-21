@@ -149,7 +149,7 @@ def merge_state(old, new):
 
 @app.get('/health')
 def health():
-    return {'ok': True, 'service': 'holding-kashani', 'version': '18.3-test'}
+    return {'ok': True, 'service': 'holding-kashani', 'version': '18.5-test'}
 
 
 @app.post('/api/auth/login')
