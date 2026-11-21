@@ -1,0 +1,37 @@
+name: Build Source Handoff ZIP
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/source-handoff.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create clean source package
+        run: |
+          mkdir -p /tmp/holding-kashani-handoff
+          rsync -a ./ /tmp/holding-kashani-handoff/ \
+            --exclude '.git' \
+            --exclude '.venv' \
+            --exclude '__pycache__' \
+            --exclude '*.db' \
+            --exclude '*.sqlite*' \
+            --exclude '.env' \
+            --exclude '*.keystore' \
+            --exclude '*.jks' \
+            --exclude 'local.properties'
+          cd /tmp
+          zip -qr Holding-Kashani-Source-Handoff.zip holding-kashani-handoff
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Holding-Kashani-Source-Handoff
+          path: /tmp/Holding-Kashani-Source-Handoff.zip
+          if-no-files-found: error
